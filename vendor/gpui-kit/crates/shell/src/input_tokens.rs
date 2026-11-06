@@ -231,6 +231,9 @@ pub(crate) const METHODS: &[(&str, &str, bool)] = &[
         false,
     ),
     ("set_selected_range", "(range: InputRange): void", false),
+    ("selected_range", "(): InputRange", true),
+    ("is_composing", "(): boolean", true),
+    ("set_submit_on_enter", "(enabled: boolean): void", false),
     ("replace", "(text: string): void", false),
 ];
 
@@ -273,6 +276,18 @@ macro_rules! state_binding {
                 ("set_selected_range", [value]) => {
                     let range = range(&entity.read(cx).value(), value)?;
                     entity.update(cx, |state, cx| state.set_selected_range(range, cx));
+                    Ok(Data::Null)
+                }
+                ("selected_range", []) => {
+                    let state = entity.read(cx);
+                    let value = state.value();
+                    let range = state.selected_range();
+                    Ok(object([("start", Data::Number(value[..range.start].encode_utf16().count() as f64)),
+                        ("end", Data::Number(value[..range.end].encode_utf16().count() as f64))]))
+                }
+                ("is_composing", []) => Ok(Data::Boolean(entity.read(cx).is_composing())),
+                ("set_submit_on_enter", [Data::Boolean(value)]) => {
+                    entity.update(cx, |state, cx| state.set_submit_on_enter(*value, cx));
                     Ok(Data::Null)
                 }
                 ("replace", [text]) => {

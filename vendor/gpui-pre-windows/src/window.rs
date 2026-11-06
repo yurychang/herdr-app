@@ -57,6 +57,8 @@ pub struct WindowsWindowState {
     pub frame_signal: Arc<PlatformFrameSignal>,
     pub input_handler: Cell<Option<PlatformInputHandler>>,
     pub ime_enabled: Cell<bool>,
+    /// HERDR: suppress the physical Return used to commit an IME candidate until key-up.
+    pub ime_return_commit: Cell<bool>,
     pub pending_surrogate: Cell<Option<u16>>,
     pub last_reported_modifiers: Cell<Option<Modifiers>>,
     pub last_reported_capslock: Cell<Option<Capslock>>,
@@ -172,6 +174,7 @@ impl WindowsWindowState {
             frame_signal: Arc::new(PlatformFrameSignal::new()),
             input_handler: Cell::new(input_handler),
             ime_enabled: Cell::new(true),
+            ime_return_commit: Cell::new(false),
             pending_surrogate: Cell::new(pending_surrogate),
             last_reported_modifiers: Cell::new(last_reported_modifiers),
             last_reported_capslock: Cell::new(last_reported_capslock),

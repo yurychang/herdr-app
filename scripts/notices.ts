@@ -41,7 +41,7 @@ if (version.exitCode !== 0 || version.stdout.toString().trim() !== "cargo-about 
   throw new Error("Install cargo-about 0.9.3 (see licenses/README.md)");
 }
 const generated = Bun.spawnSync([
-  tool, "generate", "--locked", "--fail", "scripts/notices.hbs",
+  tool, "generate", "--locked", "--fail", "scripts/notices.hbs", "--output-file", "target/notices-generated.txt",
 ], { stdout: "pipe", stderr: "inherit" });
 if (generated.exitCode !== 0) throw new Error("cargo-about failed");
 
@@ -55,7 +55,7 @@ for (const path of inputs) {
   const hash = createHash("sha256").update(input).digest("hex");
   text += `Input-SHA256: ${hash} ${path}\n`;
 }
-text += "\n" + generated.stdout.toString().replaceAll("\r\n", "\n");
+text += "\n" + (await Bun.file("target/notices-generated.txt").text()).replaceAll("\r\n", "\n");
 for (const component of inventory.components) {
   text += `\n----------------------------------------------------------------------\n${component.name}\n${component.source}\n\n`;
   for (const path of component.files) {

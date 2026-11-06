@@ -903,6 +903,25 @@ fn module(inst: Instance, copy: u64) -> HostModule {
     COMMANDS.with(|c| c.borrow_mut().push((copy, inst.name.clone(), cmd_tx)));
     HostModule::new("herdr")
         .declarations(DECLARATIONS)
+        .function("composerInfo", |_| Ok(to_host(&crate::composer::info())))
+        .async_function("composer", |a| Ok(crate::composer::request(a.string(0)?.to_owned(), a.get(1).map(from_host).unwrap_or(Value::Null))))
+        .async_function("composerClipboardImage", |_| {
+            let bytes = gpui_shell::with_current_app(|cx| {
+                cx.read_from_clipboard()?.entries().iter().find_map(|e| match e {
+                    gpui::ClipboardEntry::Image(i) => Some(i.bytes.clone()), _ => None,
+                })
+            }).flatten().ok_or_else(|| HostError::new("No image on the clipboard"))?;
+            Ok(crate::composer::clipboard(bytes))
+        })
+        .async_function("composerPickFiles", |_| {
+            let picked = gpui_shell::with_current_app(|cx| cx.prompt_for_paths(gpui::PathPromptOptions {
+                files:true, directories:false, multiple:true, prompt:Some("Add reference".into()),
+            })).ok_or_else(||HostError::new("no window to pick from"))?;
+            Ok(async move {
+                let paths=picked.await.ok().and_then(Result::ok).flatten().unwrap_or_default();
+                Ok(to_host(&json!(paths)))
+            })
+        })
         .async_function("exec", |a| {
             let command = a.string(0)?.to_owned();
             Ok(exec_future(command, strings(a.get(1)), opt_str(a.get(2), "cwd"), opt_str(a.get(2), "on"), exec_limit(a.get(2))?))

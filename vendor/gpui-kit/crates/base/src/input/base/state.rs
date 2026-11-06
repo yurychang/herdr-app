@@ -1350,6 +1350,9 @@ impl<M: InputModeKind> InputBaseState<M> {
         SharedString::new(self.text.to_string())
     }
 
+    /// HERDR: submission owners must not act on an IME composition.
+    pub fn is_composing(&self) -> bool { self.ime_marked_range.is_some() }
+
     /// Return the portion of the value within the input field that
     /// is selected by the user, as an owned string.
     ///
@@ -2046,6 +2049,8 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn enter(&mut self, action: &Enter, window: &mut Window, cx: &mut Context<Self>) {
+        // HERDR: candidate confirmation belongs to the platform IME, never a submit listener.
+        if self.ime_marked_range.is_some() { return; }
         if M::handle_context_menu_action(self, Box::new(action.clone()), window, cx) {
             return;
         }
@@ -2199,6 +2204,8 @@ impl<M: InputModeKind> InputBaseState<M> {
 
         if self.ime_marked_range.is_some() {
             self.unmark_text(window, cx);
+            cx.notify();
+            return;
         }
 
         if self.clean_on_escape {

@@ -789,6 +789,7 @@ impl AppWindow {
 
     /// Tells the updater which core this is and who owns it (off the UI thread).
     fn note_core(core: &Arc<Core>) {
+        crate::composer::set_core(core.clone());
         let core = core.clone();
         std::thread::spawn(move || {
             if let Ok(s) = core.call("server.status", json!({})) {
@@ -2449,6 +2450,31 @@ impl AppWindow {
         Ok(json!({ "space": space, "tab": ctx, "terminal": addr }))
     }
 
+    fn managed_agent(&mut self, agent: &str, folder: Option<String>, window: &Window) -> Result<Value, String> {
+        if !cfg!(windows) || !matches!(agent, "codex" | "claude") { return Err("Managed composer v1 supports local Windows Codex and Claude".into()); }
+        if self.model.active_space().is_some_and(|s| s.machine.is_some()) { return Err("Select a local space first".into()); }
+        if !crate::composer::info()["available"].as_bool().unwrap_or(false) { return Err("Core does not support durable composer submissions".into()); }
+        let command = crate::programs::startable().into_iter().find(|p| p["key"] == agent)
+            .and_then(|p| serde_json::from_value::<Vec<String>>(p["run"].clone()).ok()).ok_or("Agent command is not configured")?;
+        let argv = vec![shell(), "-NoLogo".into(), "-Command".into(), crate::composer::launch_line(&command)];
+        // No -NoExit: never deliver a pending submission into a replacement shell prompt.
+        let session = uuid::Uuid::new_v4().to_string();
+        let existing = self.model.active_space().map(|s| s.id.clone());
+        let space = existing.clone().unwrap_or_else(|| self.model.fresh_id_on("sp", None));
+        let tab = self.model.fresh_id_on("tb", None); let pane = self.model.fresh_id_on("p", None);
+        let cwd = folder.unwrap_or_else(|| existing.as_deref().map(|s| self.folder_for(s)).unwrap_or_else(home));
+        self.require_document(None)?;
+        let size = self.initial_size(&Tab::new(&tab, agent, &pane, "").root, &pane, window);
+        let labels = json!({"herdr.space":space,"herdr.tab":tab,"herdr.seen":"0","myherdr.agent":agent,
+            "input.session":session,"myherdr.argv":serde_json::to_string(&argv).map_err(|e|e.to_string())?});
+        let address = self.core.run(argv, Some(cwd.clone()), labels, None, size, crate::terminal::initial_display(window)).map_err(|e|format!("cannot start {agent}: {e:#}"))?;
+        self.born.borrow_mut().insert(address.clone(), Instant::now()); self.cwds.insert(address.clone(), cwd.clone());
+        let model_tab = Tab::new(&tab, agent, &pane, &address);
+        if existing.is_some() { self.model.add_tab(&space, model_tab); self.model.active=Some(space.clone()); }
+        else { self.model.add_space(&space, "", &cwd, model_tab); }
+        Ok(json!({"space":space,"tab":tab,"terminal":address,"session":session}))
+    }
+
     /// A tab whose only pane is a mod (a file, a board), shown at once.
     fn new_mod_tab(&mut self, space: Option<String>, name: &str, m: String, props: Value) -> Result<Value, String> {
         let space = space.or_else(|| self.model.active_space().map(|p| p.id.clone())).ok_or("no space yet: make one first (space.new)")?;
@@ -3027,6 +3053,10 @@ impl AppWindow {
                 self.swap_pane(dir);
             }
             // ---- terminals
+            "composer.launch" => {
+                let r = self.managed_agent(Self::arg(a,"agent").unwrap_or(""), Self::owned(a,"folder"), window);
+                self.answer(r);
+            }
             "terminal.open" => {
                 let argv = Self::argv(a);
                 let r = match Self::arg(a, "place").unwrap_or("tab") {

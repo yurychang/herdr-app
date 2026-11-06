@@ -431,6 +431,8 @@ impl WindowsWindowInner {
     // It's a known bug that you can't trigger `ctrl-shift-0`. See:
     // https://superuser.com/questions/1455762/ctrl-shift-number-key-combination-has-stopped-working-for-a-few-numbers
     fn handle_keydown_msg(&self, wparam: WPARAM, lparam: LPARAM) -> Option<isize> {
+        // HERDR: composition may have committed before WM_KEYDOWN reaches the editor.
+        if wparam.0 == VK_RETURN.0 as usize && self.state.ime_return_commit.get() { return Some(0); }
         let Some(input) = handle_key_event(
             wparam,
             lparam,
@@ -460,6 +462,7 @@ impl WindowsWindowInner {
     }
 
     fn handle_keyup_msg(&self, wparam: WPARAM, lparam: LPARAM) -> Option<isize> {
+        if wparam.0 == VK_RETURN.0 as usize && self.state.ime_return_commit.replace(false) { return Some(0); }
         let Some(input) = handle_key_event(wparam, lparam, &self.state, |keystroke, _| {
             PlatformInput::KeyUp(KeyUpEvent { keystroke })
         }) else {
@@ -744,6 +747,7 @@ impl WindowsWindowInner {
             Some(0)
         } else {
             if lparam & GCS_RESULTSTR.0 > 0 {
+                if unsafe { GetKeyState(VK_RETURN.0 as i32) } < 0 { self.state.ime_return_commit.set(true); }
                 let comp_result = parse_ime_composition_string(ctx, GCS_RESULTSTR)?;
                 self.with_input_handler(|input_handler| {
                     input_handler

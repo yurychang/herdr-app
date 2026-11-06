@@ -1,5 +1,7 @@
 # herdr-app: drive the person's window
 
+Personal composer builds add `herdr-app do composer.launch --agent codex` (or `claude`, optional `--folder`). Only those local managed invocations support the shared composer. Native prompts remain in the terminal. Submitted text has durable IDs/receipts; written means PTY bytes, never agent acceptance. Unknown delivery must be inspected and explicitly resolved, never automatically retried.
+
 Herdr shows spaces, tabs and panes. herdr-core (`hc`) runs their terminals
 and keeps them alive when the window closes. Use `herdr-app` only to change
 what the person sees. For starting, reading, messaging, waiting on or cleaning

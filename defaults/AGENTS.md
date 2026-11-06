@@ -526,6 +526,8 @@ shortcuts must then be added by hand.
 
 ## Commands
 
+- `composer.launch {agent, folder?}` starts a managed local Windows `codex` or `claude` terminal. It ends when the CLI exits, without an interactive shell fallback. The personal composer mod uses `composerInfo()`, `composer(command, args)`, `composerClipboardImage()` and `composerPickFiles()` for durable client storage, guarded submissions and local references. Manual/remote/WSL launches stay native. Native input/reconnect require confirmation again; unknown submissions are never automatically replayed. Textarea additionally exposes `set_submit_on_enter(bool)`, `is_composing()` and `selected_range()` (UTF-16).
+
 The one way to change anything; keys, mods (`run(name, args)`), menus and
 you use the same list. `herdr-app commands` prints every one with its arguments
 (which are required) and what it does. Unknown argument names are errors and list

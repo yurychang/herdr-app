@@ -216,6 +216,11 @@ export function setAgentOrder(addresses: string[]): null;
  *  labels, state, ...), with `status` as a plain word, the agent's report in `report`, and
  *  `program` (see Program). Live. */
 export function terminals(): any[];
+/** Composer native services. PTY written never implies agent acceptance. */
+export function composerInfo(): { available: boolean; epoch: number };
+export function composer(command: string, args?: any): Promise<any>;
+export function composerClipboardImage(): Promise<any>;
+export function composerPickFiles(): Promise<string[]>;
 
 /** Actual terminal/pane focus. `space` and `tab` are the current window context.
  *  Clicking a visible layout terminal block, or pane.focus {terminal}, focuses that block:

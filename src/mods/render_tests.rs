@@ -151,6 +151,10 @@ fn module(values: BTreeMap<String, Value>, calls: Rc<RefCell<Calls>>) -> HostMod
     module = module.async_function("feedbackPickImages", |_| Ok(async { Ok(HostValue::Array(vec![])) }));
     module = module.async_function("knownAgents", |_| Ok(async { Ok(HostValue::Array(vec![])) }));
     module = module.async_function("pickFolder", |_| Ok(async { Ok(HostValue::Null) }));
+    module = module.function("composerInfo", |_| Ok(to_host(&json!({"available":false,"epoch":0}))));
+    for name in ["composer", "composerClipboardImage", "composerPickFiles"] {
+        module = module.async_function(name, |_| Ok(async { Err(HostError::new("composer unavailable in render fixture")) }));
+    }
     for name in ["nextCommand", "watchFolder"] {
         module = module.async_function(name, |_| Ok(std::future::pending::<gpui_shell::HostResult>()));
     }
