@@ -2456,7 +2456,7 @@ impl AppWindow {
         if !crate::composer::info()["available"].as_bool().unwrap_or(false) { return Err("Core does not support durable composer submissions".into()); }
         let command = crate::programs::startable().into_iter().find(|p| p["key"] == agent)
             .and_then(|p| serde_json::from_value::<Vec<String>>(p["run"].clone()).ok()).ok_or("Agent command is not configured")?;
-        let argv = vec![shell(), "-NoLogo".into(), "-Command".into(), crate::composer::launch_line(&command)];
+        let argv = vec![crate::composer::managed_shell(), "-NoLogo".into(), "-Command".into(), crate::composer::launch_line(&command)];
         // No -NoExit: never deliver a pending submission into a replacement shell prompt.
         let session = uuid::Uuid::new_v4().to_string();
         let existing = self.model.active_space().map(|s| s.id.clone());

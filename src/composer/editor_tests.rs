@@ -26,7 +26,13 @@ fn composition_and_multiline_paste_do_not_submit(cx: &mut TestAppContext) {
             state
         });
         cx.subscribe(&input, |this: &mut Editor, _, event, _| {
-            if matches!(event, InputEvent::PressEnter { shift: false, secondary: false }) {
+            if matches!(
+                event,
+                InputEvent::PressEnter {
+                    shift: false,
+                    secondary: false
+                }
+            ) {
                 this.submitted += 1;
             }
         })

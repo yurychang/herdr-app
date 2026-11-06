@@ -15,6 +15,25 @@ static CORE: Mutex<Option<Arc<crate::hc::Core>>> = Mutex::new(None);
 static EPOCH: AtomicU64 = AtomicU64::new(0);
 static SEARCH: AtomicU64 = AtomicU64::new(0);
 
+pub fn managed_shell() -> String {
+    if cfg!(windows) {
+        // Pin the native 64-bit shell before Core refreshes the child PATH.
+        if let Some(path) = ["ProgramW6432", "ProgramFiles"]
+            .into_iter()
+            .filter_map(std::env::var_os)
+            .map(|root| std::path::PathBuf::from(root).join("PowerShell/7/pwsh.exe"))
+            .chain(std::env::var_os("SystemRoot").map(|root| {
+                std::path::PathBuf::from(root)
+                    .join("System32/WindowsPowerShell/v1.0/powershell.exe")
+            }))
+            .find(|path| path.is_file())
+        {
+            return path.to_string_lossy().into_owned();
+        }
+    }
+    crate::window::shell()
+}
+
 pub fn launch_line(command: &[String]) -> String {
     let line = crate::programs::powershell_line(command);
     if std::env::var("MYHERDR_DEV_AGENT_ENV").as_deref() != Ok("1") {
