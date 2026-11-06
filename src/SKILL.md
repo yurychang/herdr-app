@@ -156,3 +156,5 @@ through the optional MYHERDR_COMPLETIONS integration helper. No model turn is
 started. Managed launch arguments are preserved in the myherdr.command label. -->
 <!-- My Herdr packaged builds set MYHERDR_BUNDLE=1 and HERDR_APP_ID=my-herdr.
 Use the My Herdr installer to update or repair the matched App/Core runtime. -->
+<!-- My Herdr profiles expose paired manual check/restart and automatic-update
+controls in Settings > Updates, using their launcher metadata in myherdr.json. -->

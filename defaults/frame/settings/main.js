@@ -5,6 +5,7 @@ import { v_flex, h_flex, Scrollbar, InputState, Input } from "gpui-base";
 import { hc, run, theme, themes, fonts, updates, telemetry, settings, layouts, shared, appHome, readTextFile, writeTextFile, playSound, props, closeOverlay, window } from "herdr";
 
 const I = (name) => `frame/settings/${name}.svg`;
+import { MyHerdrUpdates } from './myherdr-updates.js';
 
 const SECTIONS = [
   { id: "look", title: "Look", icon: "palette" },
@@ -30,6 +31,8 @@ export default class Settings extends View {
   init(_props, cx) {
     const asked = props()?.section;
     this.section = SECTIONS.some((s) => s.id === asked) ? asked : "look";
+    this.myherdr=new MyHerdrUpdates();this.myherdr.refresh(cx);
+    cx.timer.every(1500,cx=>{if(this.section==='updates')this.myherdr.refresh(cx);});
     this.picking = null; // "font" | "ui_font" while its list is open
     this.filter = "";
     this.fontInput = InputState.new({ placeholder: "Type to search fonts" });
@@ -693,6 +696,7 @@ export default class Settings extends View {
   // Updates --------------------------------------------------------------
 
   updates(t) {
+    if(this.myherdr.config)return this.myherdr.render(t,this);
     const u = updates();
     const at = (secs) => {
       const d = new Date(secs * 1000);
@@ -819,7 +823,7 @@ export default class Settings extends View {
   render(cx) {
     const t = theme();
     const u = updates();
-    const waiting = Boolean(u.app.ready || (u.core.ready && !u.core.managed));
+    const waiting = this.myherdr.config?this.myherdr.state.state==='ready':Boolean(u.app.ready || (u.core.ready && !u.core.managed));
     const nav = v_flex()
       .flex_none()
       .w(190)

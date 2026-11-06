@@ -1043,3 +1043,6 @@ The helper must never send a user message to discover metadata. -->
 <!-- MYHERDR_BUNDLE=1 identifies an integration-managed App/Core pair. Its
 launcher supplies isolated paths and an absolute Core; upstream automatic
 checks and Core install/update are disabled. Update/repair the whole bundle. -->
+<!-- Integration profiles with myherdr.json show My Herdr version, manual check,
+automatic-update toggle and restart/apply in Settings > Updates. These invoke
+the integration launcher; never update the bundled App/Core independently. -->
