@@ -11,6 +11,44 @@ struct Editor {
     navigation: Vec<&'static str>,
     other_pastes: usize,
 }
+
+#[gpui::test]
+fn native_multiline_insert_reveals_the_caret_in_a_short_viewport(cx: &mut TestAppContext) {
+    struct ShortEditor(Entity<TextareaState>);
+    impl Render for ShortEditor {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+                .w(gpui::px(300.))
+                .h(gpui::px(26.))
+                .overflow_hidden()
+                .child(Textarea::new(&self.0))
+        }
+    }
+    cx.update(gpui_base::init);
+    let (root, cx) = cx.add_window_view(|window, cx| {
+        ShortEditor(cx.new(|cx| {
+            let mut state = TextareaState::new(window, cx);
+            state.set_rows(1, cx);
+            state.focus(window, cx);
+            state
+        }))
+    });
+    cx.run_until_parked();
+    cx.update(|window, app| window.draw(app).clear(app));
+    let input = root.read_with(cx, |view, _| view.0.clone());
+    cx.update(|window, app| {
+        input.update(app, |state, cx| {
+            state.replace_text_in_range(None, "第一行\n第二行\n最後一行🙂", window, cx);
+        })
+    });
+    cx.run_until_parked();
+    cx.update(|window, app| window.draw(app).clear(app));
+    assert!(input.read_with(cx, |state, _| state.scroll_offset().y < gpui::px(0.)));
+    assert!(input.read_with(cx, |s, _| {
+        s.visible_row_range()
+            .is_some_and(|range| range.contains(&2))
+    }));
+}
 impl Render for Editor {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         div().size_full().child(Textarea::new(&self.input))

@@ -4443,6 +4443,18 @@ impl<M: InputModeKind> EntityInputHandler for InputBaseState<M> {
         }
         if !self.silent_replace_text {
             M::on_text_typed(self, &range, &new_text, window, cx);
+            // Resolve the viewport before prepaint chooses its visible lines.
+            // Cursor-follow during layout otherwise uses the previous visible
+            // slice for one frame and a short textarea can keep painting the
+            // old line after a native multiline insert.
+            if self.is_multi_line() && !self.is_code_editor() {
+                if let Some(line_height) = self.line_height() {
+                    self.scroll_size.height = (self.display_map.wrap_row_count() as f32
+                        * line_height)
+                        .max(self.input_bounds.size.height);
+                }
+                self.scroll_to(self.cursor(), None, cx);
+            }
         }
         if self.emit_events {
             cx.emit(InputEvent::Change);
