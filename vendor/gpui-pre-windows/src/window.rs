@@ -57,6 +57,8 @@ pub struct WindowsWindowState {
     pub frame_signal: Arc<PlatformFrameSignal>,
     pub input_handler: Cell<Option<PlatformInputHandler>>,
     pub ime_enabled: Cell<bool>,
+    /// Native composition can outlive the editor's current marked range.
+    pub ime_composing: Cell<bool>,
     /// HERDR: suppress the physical Return used to commit an IME candidate until key-up.
     pub ime_return_commit: Cell<bool>,
     pub pending_surrogate: Cell<Option<u16>>,
@@ -175,6 +177,7 @@ impl WindowsWindowState {
             input_handler: Cell::new(input_handler),
             ime_enabled: Cell::new(true),
             ime_return_commit: Cell::new(false),
+            ime_composing: Cell::new(false),
             pending_surrogate: Cell::new(pending_surrogate),
             last_reported_modifiers: Cell::new(last_reported_modifiers),
             last_reported_capslock: Cell::new(last_reported_capslock),

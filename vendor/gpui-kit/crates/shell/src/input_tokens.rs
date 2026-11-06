@@ -233,6 +233,7 @@ pub(crate) const METHODS: &[(&str, &str, bool)] = &[
     ("set_selected_range", "(range: InputRange): void", false),
     ("selected_range", "(): InputRange", true),
     ("is_composing", "(): boolean", true),
+    ("set_completion_navigation", "(enabled: boolean): void", false),
     ("set_submit_on_enter", "(enabled: boolean): void", false),
     ("replace", "(text: string): void", false),
 ];
@@ -286,6 +287,10 @@ macro_rules! state_binding {
                         ("end", Data::Number(value[..range.end].encode_utf16().count() as f64))]))
                 }
                 ("is_composing", []) => Ok(Data::Boolean(entity.read(cx).is_composing())),
+                ("set_completion_navigation", [Data::Boolean(value)]) => {
+                    entity.update(cx, |state, cx| state.set_completion_navigation(*value, cx));
+                    Ok(Data::Null)
+                }
                 ("set_submit_on_enter", [Data::Boolean(value)]) => {
                     entity.update(cx, |state, cx| state.set_submit_on_enter(*value, cx));
                     Ok(Data::Null)

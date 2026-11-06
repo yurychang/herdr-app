@@ -138,7 +138,7 @@ fn handle(command: &str, args: Value, generation: u64) -> Result<Value> {
         "submit" => {
             let core = core()?;
             if args["epoch"].as_u64() != Some(EPOCH.load(Ordering::SeqCst)) {
-                bail!("Connection changed; confirm native input again")
+                bail!("Connection changed; message retained, try again")
             }
             let request = &args["request"];
             let record = managed(&core, string(&request["target"], "terminal")?)?;

@@ -145,3 +145,5 @@ Never experiment with pointer/key automation on the person's real display.
 When developing the app on Linux, its `scripts/sandbox` provides an isolated
 home, core and display: `up`, `do`, `status`, `shot`, then `down` when done.
 Never stop a server or session you didn't start.
+
+Layout tab blocks may declare `footer: {content: {mod: "my-footer"}, height: 190}`. Each tab owns its footer copy (`props().tab`), absent when no tab is shown. Visibility/height use local shared keys `tab.footer.<tab>.hidden` and `tab.footer.<tab>.height`; drag its upper edge to resize.

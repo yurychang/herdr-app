@@ -9,6 +9,7 @@ mod floats;
 mod movable;
 mod pane_drag;
 mod pane_size;
+mod tab_footer;
 mod titlebar;
 
 use crate::layout::{Axis, Background as Paint, Content, Fit, HeaderContent, Kind, Line, Node, PaneFrame, Size as Span};
@@ -382,6 +383,7 @@ pub struct AppWindow {
     bounds: Rc<RefCell<HashMap<String, Bounds<Pixels>>>>,
     hidden_fit: pane_size::HiddenFit,
     drag: Option<Drag>,
+    footer_drag: Option<(String, f32, f32)>,
     written_layout: String,
     /// The shown layout as its file has it; `chrome` is this plus the clicks
     /// (layout_sync.rs).
@@ -490,6 +492,7 @@ impl AppWindow {
             bounds: Default::default(),
             hidden_fit: Default::default(),
             drag: None,
+            footer_drag: None,
             written_layout: String::new(),
             file_chrome: default_layout("main"),
             written_state: String::new(),
@@ -1193,6 +1196,9 @@ impl AppWindow {
         if self.shows_tab()
             && let Some(c) = self.model.active_tab()
         {
+            if let Some((slot, inst)) = self.tab_footer_instance(&c.id) {
+                if !tab_footer::hidden(&c.id) { mods.push((slot, inst)); }
+            }
             let header = self.pane_frame().and_then(|f| f.header.as_ref()).and_then(|h| match &h.content {
                 HeaderContent::Mod { name, props } => Some((name.clone(), props.clone())),
                 HeaderContent::Builtin(_) => None,
@@ -1258,6 +1264,7 @@ impl AppWindow {
                 HeaderContent::Builtin(_) => None,
             });
         for c in self.model.tabs() {
+            if let Some((slot, inst)) = self.tab_footer_instance(&c.id) { out.insert(slot, inst); }
             for n in c.root.walk() {
                 if let Some(Content::Mod { name, props }) = n.content() {
                     out.insert(n.id.clone(), inst(name, props));
@@ -4112,7 +4119,7 @@ impl AppWindow {
                     .into_any_element(),
             },
             Content::Context { .. } => match self.model.active_tab() {
-                Some(c) => self.render_node(c.shown(), focused, self.pane_frame(), cx),
+                Some(c) => self.render_tab_with_footer(c, focused, cx),
                 None if self.documents.get("").is_some_and(|s| s.layout() == "loading") => div().size_full().into_any_element(),
                 None => {
                     let key = crate::keys::listing().into_iter().find(|(_, _, a)| a == "space.new").map(|(_, k, _)| format!(" ({k})"));
@@ -4888,6 +4895,12 @@ impl Render for AppWindow {
             .capture_any_mouse_down(cx.listener(|this, ev: &MouseDownEvent, _, _| this.pointer = ev.position))
             .on_mouse_move(cx.listener(|this, ev: &MouseMoveEvent, window, cx| {
                 this.drag_window(ev, window);
+                if this.footer_drag.is_some() {
+                    if ev.pressed_button == Some(MouseButton::Left) { this.resize_tab_footer(ev.position); }
+                    else { this.footer_drag = None; }
+                    cx.notify();
+                    return;
+                }
                 if this.drag.is_none() {
                     return;
                 }
@@ -4902,6 +4915,7 @@ impl Render for AppWindow {
             }))
             .on_mouse_up(MouseButton::Left, cx.listener(|this, _, window, cx| {
                 this.drag_from = None;
+                this.footer_drag = None;
                 if this.drag.take().is_some() {
                     this.save();
                     // Mods see the new sizes (the sidebar picks its rail by width).
@@ -5543,6 +5557,7 @@ export default class Probe extends View {
     }
 
     include!("window/pane_size_tests.rs");
+    include!("window/tab_footer_tests.rs");
 
     #[test]
     fn terminal_menu_preserves_clicked_target_and_uses_mod_dimensions() {

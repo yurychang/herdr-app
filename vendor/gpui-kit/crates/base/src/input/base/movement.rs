@@ -343,6 +343,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn up(&mut self, action: &MoveUp, window: &mut Window, cx: &mut Context<Self>) {
+        if self.completion_key("up", cx) { return; }
         if M::handle_context_menu_action(self, Box::new(action.clone()), window, cx) {
             return;
         }
@@ -351,6 +352,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn down(&mut self, action: &MoveDown, window: &mut Window, cx: &mut Context<Self>) {
+        if self.completion_key("down", cx) { return; }
         if M::handle_context_menu_action(self, Box::new(action.clone()), window, cx) {
             return;
         }

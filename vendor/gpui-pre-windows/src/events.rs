@@ -153,7 +153,14 @@ impl WindowsWindowInner {
             WM_KEYUP => self.handle_keyup_msg(wparam, lparam),
             WM_GPUI_KEYDOWN => self.handle_keydown_msg(wparam, lparam),
             WM_CHAR => self.handle_char_msg(wparam),
-            WM_IME_STARTCOMPOSITION => self.handle_ime_position(handle),
+            WM_IME_STARTCOMPOSITION => {
+                self.state.ime_composing.set(true);
+                self.handle_ime_position(handle)
+            }
+            WM_IME_ENDCOMPOSITION => {
+                self.state.ime_composing.set(false);
+                None
+            }
             WM_IME_COMPOSITION => self.handle_ime_composition(handle, lparam),
             WM_SETCURSOR => self.handle_set_cursor(handle, lparam),
             WM_SETTINGCHANGE => self.handle_system_settings_changed(handle, wparam, lparam),
@@ -431,6 +438,13 @@ impl WindowsWindowInner {
     // It's a known bug that you can't trigger `ctrl-shift-0`. See:
     // https://superuser.com/questions/1455762/ctrl-shift-number-key-combination-has-stopped-working-for-a-few-numbers
     fn handle_keydown_msg(&self, wparam: WPARAM, lparam: LPARAM) -> Option<isize> {
+        // The accelerator runs before TranslateMessage/DefWindowProc. Let the IME
+        // receive its own confirm/cancel/navigation key even after it cleared marked text.
+        if self.state.ime_composing.get()
+            && matches!(wparam.0, key if key == VK_RETURN.0 as usize || key == VK_ESCAPE.0 as usize || key == VK_UP.0 as usize || key == VK_DOWN.0 as usize)
+        {
+            return Some(1);
+        }
         // HERDR: composition may have committed before WM_KEYDOWN reaches the editor.
         if wparam.0 == VK_RETURN.0 as usize && self.state.ime_return_commit.get() { return Some(0); }
         let Some(input) = handle_key_event(

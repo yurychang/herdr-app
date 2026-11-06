@@ -3028,6 +3028,8 @@ const BASE: &str = r#"  /** A row. */
 
   /** Payload emitted by retained text state. Submit events carry key modifiers. */
   export interface InputEvent {
+    /** Present for completion navigation. Native IME takes precedence. */
+    key?: "enter" | "up" | "down" | "escape";
     readonly secondary?: boolean;
     readonly shift?: boolean;
   }
@@ -3052,7 +3054,7 @@ const BASE: &str = r#"  /** A row. */
     /** Plain text, or a content snapshot to restore its tokens as well. */
     set_value(next: string | InputContent): void;
     /** `change`, `submit`, `focus`, `blur`, or `paste_other`: a paste found no text (an image, say). */
-    on(event: "change" | "submit" | "focus" | "blur" | "paste_other", handler: (event: InputEvent, cx: Context) => void): boolean;
+    on(event: "change" | "submit" | "focus" | "blur" | "paste_other" | "navigate", handler: (event: InputEvent, cx: Context) => void): boolean;
     /**
      * How much one step moves the value in a `NumberInput`. Default is 1;
      * `null` gives up stepping entirely.
@@ -3121,7 +3123,7 @@ const BASE: &str = r#"  /** A row. */
     /** Plain text, or a content snapshot to restore its tokens as well. */
     set_value(next: string | InputContent): void;
     /** `change`, `submit`, `focus`, `blur`, or `paste_other`: a paste found no text (an image, say). */
-    on(event: "change" | "submit" | "focus" | "blur" | "paste_other", handler: (event: InputEvent, cx: Context) => void): boolean;
+    on(event: "change" | "submit" | "focus" | "blur" | "paste_other" | "navigate", handler: (event: InputEvent, cx: Context) => void): boolean;
     /** Shows this many rows. */
     set_rows(rows: number): void;
     /** Grows with the content, between the two row counts. */
@@ -3145,7 +3147,7 @@ const BASE: &str = r#"  /** A row. */
     value(): string;
     /** Programmatic replacement works even in readonly mode. */
     set_value(value: string): void;
-    on(event: "change" | "submit" | "focus" | "blur" | "paste_other", handler: (event: InputEvent, cx: Context) => void): boolean;
+    on(event: "change" | "submit" | "focus" | "blur" | "paste_other" | "navigate", handler: (event: InputEvent, cx: Context) => void): boolean;
     release(): boolean;
   }
   export const EditorState: {

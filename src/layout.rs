@@ -25,6 +25,9 @@ pub enum Content {
         tab: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pane: Option<PaneFrame>,
+        /// A retained, resizable mod owned by each tab.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        footer: Option<Header>,
     },
     /// An agent's terminal, full size (`"focused"`: the selected agent).
     Agent { agent: String },
@@ -794,7 +797,7 @@ mod tests {
             { "id": "main", "type": "block", "content": {"tab": "active"} } ] }"#;
         let n: Node = serde_json::from_str(json).unwrap();
         assert_eq!(n.find("sidebar").unwrap().size, Some(Size::Px { px: 260.0 }));
-        assert_eq!(n.find("main").unwrap().content(), Some(&Content::Context { tab: "active".into(), pane: None }));
+        assert_eq!(n.find("main").unwrap().content(), Some(&Content::Context { tab: "active".into(), pane: None, footer: None }));
         let back: Node = serde_json::from_str(&serde_json::to_string(&n).unwrap()).unwrap();
         assert_eq!(back, n);
     }

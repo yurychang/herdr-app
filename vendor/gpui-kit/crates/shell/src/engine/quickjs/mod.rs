@@ -3875,6 +3875,7 @@ impl ShellRuntime {
             let handler = handler.clone().restore(ctx)?;
             let payload = Object::new(ctx.clone())?;
             match event {
+                InputEvent::Navigate { key } => { payload.set("key", *key)?; }
                 InputEvent::PressEnter { secondary, shift } => {
                     payload.set("secondary", *secondary)?;
                     payload.set("shift", *shift)?;
@@ -6144,7 +6145,7 @@ globalThis.__gpui = (() => {
   // to read it back off `this`.
   const tokenStateMethods = (handle, invoke) => Object.fromEntries([
     "content", "tokens", "replace_with_token", "replace_range_with_token",
-    "set_selected_range", "selected_range", "is_composing", "set_submit_on_enter", "replace"
+    "set_selected_range", "selected_range", "is_composing", "set_submit_on_enter", "set_completion_navigation", "replace"
   ].map(name => [name, (...args) => invoke(handle, name, args)]));
   // A value is plain text or a content snapshot with tokens.
   const setValue = (handle, setText, invoke) => (next) =>

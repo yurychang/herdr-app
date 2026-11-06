@@ -1029,3 +1029,5 @@ including a small herdr-core skill you can install with the user's permission.
 - One mod per idea. Don't edit `AGENTS.md` or the `.d.ts` files (the app
   rewrites them). Don't touch other mods unless the request
   needs it.
+
+A layout tab block can add `footer: {content: {mod: "my-footer"}, height: 190}`. Each tab owns a retained mod copy with `props().tab`; no tab means no footer. Use shared keys `tab.footer.<tab>.hidden` (default false) and `tab.footer.<tab>.height` for local visibility and draggable height. Use `TextareaState.set_completion_navigation(true)` and its `navigate` event for anchored candidate menus; Enter selects without also submitting. Keep IME composition native.

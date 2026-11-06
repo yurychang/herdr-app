@@ -131,6 +131,8 @@ pub enum InputEvent {
     Blur,
     /// A paste found no text on the clipboard (an image, say): the owner may read it.
     PasteWithoutText,
+    /// Navigation belongs to the owner's anchored completion list.
+    Navigate { key: &'static str },
 }
 
 pub(super) const CONTEXT: &str = "Input";
@@ -474,6 +476,7 @@ pub struct InputBaseState<M: InputModeKind> {
     pub(super) masked: bool,
     pub(super) clean_on_escape: bool,
     pub(super) submit_on_enter: bool,
+    pub(super) completion_navigation: bool,
     pub(super) show_whitespaces: bool,
     /// This flag tells the renderer to prefer the end of the current visual line.
     pub(crate) cursor_line_end_affinity: bool,
@@ -840,6 +843,7 @@ impl<M: InputModeKind> InputBaseState<M> {
             masked: false,
             clean_on_escape: false,
             submit_on_enter: false,
+            completion_navigation: false,
             show_whitespaces: false,
             loading: false,
             pattern: None,
@@ -1252,6 +1256,18 @@ impl<M: InputModeKind> InputBaseState<M> {
     pub fn submit_on_enter(mut self, submit: bool) -> Self {
         self.submit_on_enter = submit;
         self
+    }
+
+    pub fn set_completion_navigation(&mut self, enabled: bool, cx: &mut Context<Self>) {
+        self.completion_navigation = enabled;
+        cx.notify();
+    }
+
+    pub(super) fn completion_key(&mut self, key: &'static str, cx: &mut Context<Self>) -> bool {
+        if self.completion_navigation && !self.is_composing() {
+            cx.emit(InputEvent::Navigate { key });
+            true
+        } else { false }
     }
 
     pub fn set_submit_on_enter(&mut self, submit: bool, cx: &mut Context<Self>) {
@@ -2051,6 +2067,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     pub(super) fn enter(&mut self, action: &Enter, window: &mut Window, cx: &mut Context<Self>) {
         // HERDR: candidate confirmation belongs to the platform IME, never a submit listener.
         if self.ime_marked_range.is_some() { return; }
+        if !action.shift && !action.secondary && self.completion_key("enter", cx) { return; }
         if M::handle_context_menu_action(self, Box::new(action.clone()), window, cx) {
             return;
         }
@@ -2174,6 +2191,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn escape(&mut self, action: &Escape, window: &mut Window, cx: &mut Context<Self>) {
+        if self.completion_key("escape", cx) { return; }
         if M::handle_context_menu_action(self, Box::new(action.clone()), window, cx) {
             return;
         }

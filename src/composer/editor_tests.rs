@@ -8,6 +8,7 @@ use gpui_base::input::{InputEvent, Textarea, TextareaState};
 struct Editor {
     input: Entity<TextareaState>,
     submitted: usize,
+    navigation: Vec<&'static str>,
 }
 impl Render for Editor {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
@@ -26,6 +27,9 @@ fn composition_and_multiline_paste_do_not_submit(cx: &mut TestAppContext) {
             state
         });
         cx.subscribe(&input, |this: &mut Editor, _, event, _| {
+            if let InputEvent::Navigate { key } = event {
+                this.navigation.push(key);
+            }
             if matches!(
                 event,
                 InputEvent::PressEnter {
@@ -40,6 +44,7 @@ fn composition_and_multiline_paste_do_not_submit(cx: &mut TestAppContext) {
         Editor {
             input,
             submitted: 0,
+            navigation: Vec::new(),
         }
     });
     cx.run_until_parked();
@@ -76,4 +81,10 @@ fn composition_and_multiline_paste_do_not_submit(cx: &mut TestAppContext) {
     assert_eq!(root.read_with(cx, |view, _| view.submitted), 0);
     cx.simulate_keystrokes("enter");
     assert_eq!(root.read_with(cx, |view, _| view.submitted), 1);
+    let selection = input.read_with(cx, |state, _| state.selected_range());
+    cx.update(|_, app| input.update(app, |state, cx| state.set_completion_navigation(true, cx)));
+    cx.simulate_keystrokes("down up enter escape");
+    assert_eq!(root.read_with(cx, |view, _| view.submitted), 1, "candidate Enter must not also submit");
+    assert_eq!(root.read_with(cx, |view, _| view.navigation.clone()), vec!["down", "up", "enter", "escape"]);
+    assert_eq!(input.read_with(cx, |state, _| state.selected_range()), selection, "arrows select candidates without moving the caret");
 }

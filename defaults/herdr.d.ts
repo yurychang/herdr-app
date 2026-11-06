@@ -235,6 +235,10 @@ export function composerPickFiles(): Promise<string[]>;
  *  `terminal` is null for mod panes. Live. */
 export function focused(): { space: string; tab: string; pane: string | null; terminal: string | null; shown: string | null; agent: string | null; cwd: string | null } | null;
 
+/** A {tab:"active"} content block may define footer:{content:{mod,props?},height?}.
+ * One retained copy belongs to each tab, receives props().tab, and is absent without a tab.
+ * shared("tab.footer.<tab>.hidden") hides it completely (default false);
+ * shared("tab.footer.<tab>.height") persists its draggable height locally. */
 /** The shown layout (layouts/<name>.json). Its name is shared("layout").
  *  Root `terminal_menu?: string` chooses a terminal right-click menu mod (default: "menu").
  *  Unknown names warn and fall back to "menu". This replaces the menu, not its items.
