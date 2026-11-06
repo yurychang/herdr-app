@@ -1040,3 +1040,6 @@ an absolute helper executable. composer('completions',{terminal}) validates a
 managed local target and obtains official skills/command metadata only. Newly
 managed launches record myherdr.command; old launches must restart to discover.
 The helper must never send a user message to discover metadata. -->
+<!-- MYHERDR_BUNDLE=1 identifies an integration-managed App/Core pair. Its
+launcher supplies isolated paths and an absolute Core; upstream automatic
+checks and Core install/update are disabled. Update/repair the whole bundle. -->

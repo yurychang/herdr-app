@@ -17,6 +17,11 @@ mod cli_link;
 
 static BIN: OnceLock<PathBuf> = OnceLock::new();
 
+/// The private integration installs a tested App/Core pair as one bundle.
+pub fn managed_bundle() -> bool {
+    std::env::var("MYHERDR_BUNDLE").as_deref() == Ok("1")
+}
+
 #[cfg(target_os = "macos")]
 pub fn install_cli_link() {
     if let Err(e) = std::thread::Builder::new().name("cli-link".into()).spawn(|| {
@@ -170,6 +175,7 @@ fn login_shell_path() -> Option<std::ffi::OsString> {
 /// Installs the core's latest release with its own installer (into
 /// ~/.local/bin, or HC_INSTALL_DIR), then finds it. Err: what went wrong.
 pub fn install() -> Result<PathBuf, String> {
+    if managed_bundle() { return Err("Use the My Herdr installer to repair its bundled runtime.".into()); }
     let releases = std::env::var("HERDR_RELEASES_URL").unwrap_or_else(|_| "https://releases.herdr.dev".into());
     let mut cmd = if cfg!(windows) {
         let mut c = crate::spawn::command("powershell");
@@ -206,6 +212,7 @@ pub fn update() -> Result<String, String> {
 
 /// `hc update --version X`: at least X (a newer core stays). Cores before 0.1.5 lack it.
 pub fn update_to(at_least: Option<&str>) -> Result<String, String> {
+    if managed_bundle() { return Err("Update My Herdr with its installer to keep the App and Core paired.".into()); }
     let mut cmd = crate::spawn::command(path());
     cmd.args(["update", "--json"]);
     if let Some(v) = at_least {
@@ -289,6 +296,20 @@ fn ensure_core_bundle(version: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn managed_bundle_refuses_independent_core_install_and_update() {
+        if std::env::var("MYHERDR_GUARD_TEST").as_deref() != Ok("1") {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "core_bin::tests::managed_bundle_refuses_independent_core_install_and_update", "--test-threads=1"])
+                .env("MYHERDR_BUNDLE", "1").env("MYHERDR_GUARD_TEST", "1").output().unwrap();
+            assert!(output.status.success(), "{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+            return;
+        }
+        assert!(super::managed_bundle());
+        assert!(super::install().unwrap_err().contains("My Herdr installer"));
+        assert!(super::update_to(None).unwrap_err().contains("App and Core paired"));
+        assert_eq!(crate::update::status()["app"]["updates"], false);
+    }
     use super::*;
 
     #[cfg(target_os = "macos")]

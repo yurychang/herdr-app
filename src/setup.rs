@@ -48,7 +48,7 @@ pub struct Setup {
 pub fn open(need: Need, requests: async_channel::Receiver<Request>, cx: &mut App) {
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(620.0), px(460.0)), cx))),
-        titlebar: Some(TitlebarOptions { title: Some("Herdr".into()), ..Default::default() }),
+        titlebar: Some(TitlebarOptions { title: Some(if crate::core_bin::managed_bundle() { "My Herdr" } else { "Herdr" }.into()), ..Default::default() }),
         app_id: Some("herdr-app".into()),
         ..Default::default()
     };

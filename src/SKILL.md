@@ -154,3 +154,5 @@ The composer's Ctrl+V recognizes a copied single image file or bitmap content; C
 <!-- Composer metadata: composer('completions',{terminal}) reads official skills
 through the optional MYHERDR_COMPLETIONS integration helper. No model turn is
 started. Managed launch arguments are preserved in the myherdr.command label. -->
+<!-- My Herdr packaged builds set MYHERDR_BUNDLE=1 and HERDR_APP_ID=my-herdr.
+Use the My Herdr installer to update or repair the matched App/Core runtime. -->

@@ -117,11 +117,13 @@ pub fn set_core(version: Option<String>, managed: Option<String>) {
 }
 
 fn checks_app() -> Option<PathBuf> {
+    if crate::core_bin::managed_bundle() { return None; }
     root().filter(|_| option_env!("HERDR_APP_RELEASE").is_some() || std::env::var_os("HERDR_RELEASES_URL").is_some())
 }
 
 /// A release build checks the core; a source build only when pointed at a test release server.
 fn checks_core() -> bool {
+    if crate::core_bin::managed_bundle() { return false; }
     option_env!("HERDR_APP_RELEASE").is_some() || std::env::var_os("HERDR_RELEASES_URL").is_some()
 }
 
@@ -576,6 +578,7 @@ fn marker() -> PathBuf {
 /// Cores before 0.1.5 lack `--version`: they keep their same-generation update
 /// path. A core a package manager owns is left alone (hc says so).
 pub fn after_update() {
+    if crate::core_bin::managed_bundle() { return; }
     if std::fs::remove_file(marker()).is_err() {
         return;
     }
