@@ -126,13 +126,18 @@ actions!(
 #[derive(Clone)]
 pub enum InputEvent {
     Change,
-    PressEnter { secondary: bool, shift: bool },
+    PressEnter {
+        secondary: bool,
+        shift: bool,
+    },
     Focus,
     Blur,
     /// A paste found no text on the clipboard (an image, say): the owner may read it.
     PasteWithoutText,
     /// Navigation belongs to the owner's anchored completion list.
-    Navigate { key: &'static str },
+    Navigate {
+        key: &'static str,
+    },
 }
 
 pub(super) const CONTEXT: &str = "Input";
@@ -415,6 +420,8 @@ pub struct InputBaseState<M: InputModeKind> {
     pub(super) undo_manager: UndoManager,
     pub(super) inline_tokens: Option<Box<super::inline_tokens::InlineTokenStore>>,
     pub(super) pending_token: Option<super::InlineToken>,
+    pub(super) pending_clipboard_tokens: Vec<super::InlineTokenSpan>,
+    paste_media_as_attachment: bool,
     pub(super) replaying_history: bool,
     pub(super) validated_token_edit: bool,
     pub(super) document_revision: u64,
@@ -822,6 +829,8 @@ impl<M: InputModeKind> InputBaseState<M> {
             undo_manager,
             inline_tokens: None,
             pending_token: None,
+            pending_clipboard_tokens: Vec::new(),
+            paste_media_as_attachment: false,
             replaying_history: false,
             validated_token_edit: false,
             document_revision: 0,
@@ -1267,11 +1276,19 @@ impl<M: InputModeKind> InputBaseState<M> {
         if self.completion_navigation && !self.is_composing() {
             cx.emit(InputEvent::Navigate { key });
             true
-        } else { false }
+        } else {
+            false
+        }
     }
 
     pub fn set_submit_on_enter(&mut self, submit: bool, cx: &mut Context<Self>) {
         self.submit_on_enter = submit;
+        cx.notify();
+    }
+    /// Opt-in for composers: media/file clipboard entries emit paste_other even
+    /// when the platform also offers their filenames as text.
+    pub fn set_paste_media(&mut self, enabled: bool, cx: &mut Context<Self>) {
+        self.paste_media_as_attachment = enabled;
         cx.notify();
     }
 
@@ -1367,7 +1384,9 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     /// HERDR: submission owners must not act on an IME composition.
-    pub fn is_composing(&self) -> bool { self.ime_marked_range.is_some() }
+    pub fn is_composing(&self) -> bool {
+        self.ime_marked_range.is_some()
+    }
 
     /// Return the portion of the value within the input field that
     /// is selected by the user, as an owned string.
@@ -2066,8 +2085,12 @@ impl<M: InputModeKind> InputBaseState<M> {
 
     pub(super) fn enter(&mut self, action: &Enter, window: &mut Window, cx: &mut Context<Self>) {
         // HERDR: candidate confirmation belongs to the platform IME, never a submit listener.
-        if self.ime_marked_range.is_some() { return; }
-        if !action.shift && !action.secondary && self.completion_key("enter", cx) { return; }
+        if self.ime_marked_range.is_some() {
+            return;
+        }
+        if !action.shift && !action.secondary && self.completion_key("enter", cx) {
+            return;
+        }
         if M::handle_context_menu_action(self, Box::new(action.clone()), window, cx) {
             return;
         }
@@ -2191,7 +2214,9 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn escape(&mut self, action: &Escape, window: &mut Window, cx: &mut Context<Self>) {
-        if self.completion_key("escape", cx) { return; }
+        if self.completion_key("escape", cx) {
+            return;
+        }
         if M::handle_context_menu_action(self, Box::new(action.clone()), window, cx) {
             return;
         }
@@ -2801,7 +2826,7 @@ impl<M: InputModeKind> InputBaseState<M> {
 
         let texts = self.selected_texts();
 
-        cx.write_to_clipboard(ClipboardItem::new_string(texts.join("\n")));
+        cx.write_to_clipboard(self.token_clipboard(texts.join("\n")));
     }
 
     pub(super) fn cut(&mut self, _: &Cut, window: &mut Window, cx: &mut Context<Self>) {
@@ -2811,7 +2836,7 @@ impl<M: InputModeKind> InputBaseState<M> {
 
         let texts = self.selected_texts();
 
-        cx.write_to_clipboard(ClipboardItem::new_string(texts.join("\n")));
+        cx.write_to_clipboard(self.token_clipboard(texts.join("\n")));
 
         self.undo_manager.set_pending_intent(EditIntent::Atomic);
         self.replace_text_in_range_silent(None, "", window, cx);
@@ -2876,9 +2901,32 @@ impl<M: InputModeKind> InputBaseState<M> {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.paste_media_as_attachment
+            && clipboard.entries().iter().any(|entry| {
+                matches!(
+                    entry,
+                    gpui::ClipboardEntry::Image(_) | gpui::ClipboardEntry::ExternalPaths(_)
+                )
+            })
+        {
+            cx.emit(InputEvent::PasteWithoutText);
+            return;
+        }
         let Some(mut new_text) = clipboard.text().filter(|text| !text.is_empty()) else {
             cx.emit(InputEvent::PasteWithoutText);
             return;
+        };
+        // Only a coherent, validated token snapshot can annotate this paste.
+        let copied = if self.is_multi_line()
+            && self.selections.is_single()
+            && !M::CODE_EDITOR
+            && !self.masked
+            && self.mask_pattern.is_none()
+            && !self.is_composing()
+        {
+            super::inline_tokens::clipboard_content(&clipboard, &new_text)
+        } else {
+            None
         };
         // A paste is one atomic edit, never part of a typing run.
         self.undo_manager.set_pending_intent(EditIntent::Atomic);
@@ -2907,7 +2955,9 @@ impl<M: InputModeKind> InputBaseState<M> {
                 .collect();
             self.replace_text_in_ranges(&edits, window, cx);
         } else {
+            self.pending_clipboard_tokens = copied.map(|c| c.tokens().to_vec()).unwrap_or_default();
             self.replace_text_in_range_silent(None, &new_text, window, cx);
+            self.pending_clipboard_tokens.clear();
         }
         self.scroll_to(self.cursor(), None, cx);
     }

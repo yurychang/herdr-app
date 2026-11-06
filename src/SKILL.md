@@ -147,3 +147,10 @@ home, core and display: `up`, `do`, `status`, `shot`, then `down` when done.
 Never stop a server or session you didn't start.
 
 Layout tab blocks may declare `footer: {content: {mod: "my-footer"}, height: 190}`. Each tab owns its footer copy (`props().tab`), absent when no tab is shown. Visibility/height use local shared keys `tab.footer.<tab>.hidden` and `tab.footer.<tab>.height`; drag its upper edge to resize.
+
+The composer stores image attachments independently and inserts atomic `[Image #N]` references at the caret. Thumbnail previews are bounded and generated off the UI thread. Native copy/cut/paste preserves inline token identity and undo. Draft/history recovery retains content snapshots. Delivery remains explicit local image paths at each token position; this does not inject a native CLI binary image attachment.
+
+The composer's Ctrl+V recognizes a copied single image file or bitmap content; Ctrl+Shift+V explicitly accepts a copied absolute image-path string too. Other native text fields retain normal paste behavior. This uses the opt-in native `set_paste_media(true)` bridge, not text-change path guessing.
+<!-- Composer metadata: composer('completions',{terminal}) reads official skills
+through the optional MYHERDR_COMPLETIONS integration helper. No model turn is
+started. Managed launch arguments are preserved in the myherdr.command label. -->

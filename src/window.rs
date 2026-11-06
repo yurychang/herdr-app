@@ -2473,7 +2473,7 @@ impl AppWindow {
         self.require_document(None)?;
         let size = self.initial_size(&Tab::new(&tab, agent, &pane, "").root, &pane, window);
         let labels = json!({"herdr.space":space,"herdr.tab":tab,"herdr.seen":"0","myherdr.agent":agent,
-            "input.session":session,"myherdr.argv":serde_json::to_string(&argv).map_err(|e|e.to_string())?});
+            "input.session":session,"myherdr.command":serde_json::to_string(&command).map_err(|e|e.to_string())?,"myherdr.argv":serde_json::to_string(&argv).map_err(|e|e.to_string())?});
         let address = self.core.run(argv, Some(cwd.clone()), labels, None, size, crate::terminal::initial_display(window)).map_err(|e|format!("cannot start {agent}: {e:#}"))?;
         self.born.borrow_mut().insert(address.clone(), Instant::now()); self.cwds.insert(address.clone(), cwd.clone());
         let model_tab = Tab::new(&tab, agent, &pane, &address);

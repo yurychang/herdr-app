@@ -16,7 +16,21 @@ fn initial_pane_size(cx: &mut gpui::TestAppContext) {
             "header": {"height": 23, "content": {"mod": "size-probe"}}
         }}
     });
-    let main: serde_json::Value = serde_json::from_str(include_str!("../../defaults/layouts/main.json")).unwrap();
+    let mut main: serde_json::Value = serde_json::from_str(include_str!("../../defaults/layouts/main.json")).unwrap();
+    // Preserve the shipped geometry without starting real sidebar/header mods.
+    // Retaining only the probe after open_window is too late: construction has
+    // already spawned their OS threads, which violate GPUI's test scheduler.
+    fn stub_mods(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::Object(map) => {
+                if map.contains_key("mod") { map.insert("mod".into(),serde_json::json!("size-probe")); }
+                for child in map.values_mut() { stub_mods(child); }
+            }
+            serde_json::Value::Array(values) => {for child in values { stub_mods(child); }}
+            _ => {}
+        }
+    }
+    stub_mods(&mut main);
     let (view, cx) = open_window(cx, "size-probe", "export default () => null;", plain.clone());
     for (label, layout, steps) in [
         ("lone", plain.clone(), vec![]),

@@ -6,6 +6,7 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 use std::time::Duration;
+mod completions;
 #[cfg(test)]
 mod editor_tests;
 mod files;
@@ -118,7 +119,27 @@ fn handle(command: &str, args: Value, generation: u64) -> Result<Value> {
         "recovery" => store::recovery(),
         "search" => files::search(&args, || SEARCH.load(Ordering::SeqCst) != generation),
         "search.cancel" => Ok(Value::Null),
-        "file" => files::metadata(std::path::Path::new(string(&args, "path")?), false),
+        "completions" => {
+            let core = core()?;
+            let record = managed(&core, string(&args, "terminal")?)?;
+            let cwd = record["foreground"]["cwd"]
+                .as_str()
+                .or(record["cwd"].as_str())
+                .ok_or_else(|| anyhow!("Working directory unavailable"))?;
+            completions::discover(&record, cwd)
+        }
+        "file" => files::reference(std::path::Path::new(string(&args, "path")?), false),
+        "image.register" => {
+            let reference = files::reference(
+                std::path::Path::new(string(&args, "path")?),
+                args["managed"] == true,
+            )?;
+            if reference["image"] != true {
+                bail!("Select an image")
+            }
+            store::save_attachment(string(&args, "id")?, reference)
+        }
+        "image.get" => store::attachment(string(&args, "id")?),
         "clipboard.save" => files::save_clipboard(&args),
         "newId" => Ok(json!(uuid::Uuid::new_v4().to_string())),
         "target" => {
@@ -225,12 +246,22 @@ fn handle(command: &str, args: Value, generation: u64) -> Result<Value> {
 }
 
 pub fn clipboard(
-    bytes: Vec<u8>,
+    item: gpui::ClipboardItem,
 ) -> impl std::future::Future<Output = Result<gpui_shell::HostValue, gpui_shell::HostError>> + Send
 {
     let (tx, rx) = async_channel::bounded(1);
     std::thread::spawn(move || {
-        let _ = tx.send_blocking(files::clipboard(bytes));
+        let result = (|| match clipboard_source(item)? {
+            ClipboardSource::Image(bytes) => files::clipboard(bytes),
+            ClipboardSource::Path(path) => {
+                let reference = files::reference(&path, false)?;
+                if reference["image"] != true {
+                    bail!("Clipboard file is not an image")
+                }
+                Ok(reference)
+            }
+        })();
+        let _ = tx.send_blocking(result);
     });
     async move {
         Ok(crate::mods::to_host(
@@ -239,5 +270,70 @@ pub fn clipboard(
                 .map_err(|_| gpui_shell::HostError::new("clipboard task lost"))?
                 .map_err(|e| gpui_shell::HostError::new(e.to_string()))?,
         ))
+    }
+}
+
+enum ClipboardSource {
+    Image(Vec<u8>),
+    Path(std::path::PathBuf),
+}
+fn clipboard_source(item: gpui::ClipboardItem) -> Result<ClipboardSource> {
+    if let Some(bytes) = item.entries().iter().find_map(|entry| match entry {
+        gpui::ClipboardEntry::Image(image) => Some(image.bytes.clone()),
+        _ => None,
+    }) {
+        return Ok(ClipboardSource::Image(bytes));
+    }
+    let paths: Vec<_> = item
+        .entries()
+        .iter()
+        .filter_map(|entry| match entry {
+            gpui::ClipboardEntry::ExternalPaths(paths) => Some(paths.0.iter()),
+            _ => None,
+        })
+        .flatten()
+        .cloned()
+        .collect();
+    if !paths.is_empty() {
+        if paths.len() != 1 {
+            bail!("Paste one image file at a time")
+        };
+        return Ok(ClipboardSource::Path(paths[0].clone()));
+    }
+    // The explicit paste-image action also accepts a copied single local path.
+    if let Some(text) = item.text() {
+        let text = text.trim();
+        let path = text
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
+            .unwrap_or(text);
+        if !path.contains(['\n', '\r']) && std::path::Path::new(path).is_absolute() {
+            return Ok(ClipboardSource::Path(path.into()));
+        }
+    }
+    bail!("剪貼簿沒有圖片或單一圖片路徑；可複製圖片檔後貼上，或使用 Ctrl+Shift+A 選檔")
+}
+
+#[cfg(test)]
+mod clipboard_tests {
+    use super::*;
+    #[test]
+    fn image_file_clipboard_and_explicit_path_are_supported_without_deleting_originals() {
+        let path = std::env::temp_dir().join("中文 圖.png");
+        let files = |paths: Vec<std::path::PathBuf>| gpui::ClipboardItem {
+            entries: vec![gpui::ClipboardEntry::ExternalPaths(gpui::ExternalPaths(
+                paths.into(),
+            ))],
+        };
+        assert!(
+            matches!(clipboard_source(files(vec![path.clone()])).unwrap(),ClipboardSource::Path(p) if p==path)
+        );
+        assert!(
+            matches!(clipboard_source(gpui::ClipboardItem::new_string(format!("\"{}\"",path.display()))).unwrap(),ClipboardSource::Path(p) if p==path)
+        );
+        assert!(clipboard_source(files(vec![path.clone(), path])).is_err());
+        assert!(
+            clipboard_source(gpui::ClipboardItem::new_string("ordinary prompt".into())).is_err()
+        );
     }
 }

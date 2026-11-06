@@ -235,6 +235,7 @@ pub(crate) const METHODS: &[(&str, &str, bool)] = &[
     ("is_composing", "(): boolean", true),
     ("set_completion_navigation", "(enabled: boolean): void", false),
     ("set_submit_on_enter", "(enabled: boolean): void", false),
+    ("set_paste_media", "(enabled: boolean): void", false),
     ("replace", "(text: string): void", false),
 ];
 
@@ -293,6 +294,10 @@ macro_rules! state_binding {
                 }
                 ("set_submit_on_enter", [Data::Boolean(value)]) => {
                     entity.update(cx, |state, cx| state.set_submit_on_enter(*value, cx));
+                    Ok(Data::Null)
+                }
+                ("set_paste_media", [Data::Boolean(value)]) => {
+                    entity.update(cx, |state, cx| state.set_paste_media(*value, cx));
                     Ok(Data::Null)
                 }
                 ("replace", [text]) => {

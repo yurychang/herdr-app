@@ -1031,3 +1031,12 @@ including a small herdr-core skill you can install with the user's permission.
   needs it.
 
 A layout tab block can add `footer: {content: {mod: "my-footer"}, height: 190}`. Each tab owns a retained mod copy with `props().tab`; no tab means no footer. Use shared keys `tab.footer.<tab>.hidden` (default false) and `tab.footer.<tab>.height` for local visibility and draggable height. Use `TextareaState.set_completion_navigation(true)` and its `navigate` event for anchored candidate menus; Enter selects without also submitting. Keep IME composition native.
+
+Composer images use native inline tokens and independent local attachment records. `composer("image.register", {id, path, managed?})` validates an image and saves its metadata/preview; `composer("image.get", {id})` resolves a pasted token and copies other local clients' metadata into this client. Keep `TextareaState.content()` with drafts to preserve token identity and UTF-16 ranges. Native token clipboard metadata preserves references through cut/paste and undo. These are local path references, not native CLI image payloads.
+
+Composers can opt in with `TextareaState.set_paste_media(true)`: image/file clipboard entries emit `paste_other` before filenames become text. `composerClipboardImage()` accepts bitmap content, one copied image file, or one absolute image-path string for an explicit paste-image action. User files remain unmanaged and are never deleted.
+<!-- Personal integration: optional metadata discovery uses MYHERDR_COMPLETIONS,
+an absolute helper executable. composer('completions',{terminal}) validates a
+managed local target and obtains official skills/command metadata only. Newly
+managed launches record myherdr.command; old launches must restart to discover.
+The helper must never send a user message to discover metadata. -->

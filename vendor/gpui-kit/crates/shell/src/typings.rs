@@ -3053,7 +3053,7 @@ const BASE: &str = r#"  /** A row. */
     value(): string;
     /** Plain text, or a content snapshot to restore its tokens as well. */
     set_value(next: string | InputContent): void;
-    /** `change`, `submit`, `focus`, `blur`, or `paste_other`: a paste found no text (an image, say). */
+    /** `paste_other`: no text, or a media/file paste when set_paste_media(true) opts in. */
     on(event: "change" | "submit" | "focus" | "blur" | "paste_other" | "navigate", handler: (event: InputEvent, cx: Context) => void): boolean;
     /**
      * How much one step moves the value in a `NumberInput`. Default is 1;
@@ -3122,7 +3122,7 @@ const BASE: &str = r#"  /** A row. */
     value(): string;
     /** Plain text, or a content snapshot to restore its tokens as well. */
     set_value(next: string | InputContent): void;
-    /** `change`, `submit`, `focus`, `blur`, or `paste_other`: a paste found no text (an image, say). */
+    /** `paste_other`: no text, or a media/file paste when set_paste_media(true) opts in. */
     on(event: "change" | "submit" | "focus" | "blur" | "paste_other" | "navigate", handler: (event: InputEvent, cx: Context) => void): boolean;
     /** Shows this many rows. */
     set_rows(rows: number): void;

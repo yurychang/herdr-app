@@ -1,7 +1,7 @@
 //! Document annotations for atomic inline objects. Coordinates are always source bytes.
 use std::ops::Range;
 
-use gpui::{Context, EntityInputHandler as _, SharedString, Window};
+use gpui::{ClipboardItem, Context, EntityInputHandler as _, SharedString, Window};
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::{InputBaseState, InputModeKind, undo_manager::EditIntent};
@@ -249,7 +249,65 @@ impl InlineTokenStore {
     }
 }
 
+/// Clipboard metadata preserves token identity without changing the plain-text representation.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct CopiedTokens {
+    format: String,
+    text: String,
+    tokens: Vec<(usize, usize, String, String, String)>,
+}
+pub(super) fn clipboard_content(clipboard: &ClipboardItem, text: &str) -> Option<InputContent> {
+    let metadata = clipboard.metadata()?;
+    if metadata.len() > 1024 * 1024 {
+        return None;
+    }
+    let copied: CopiedTokens = serde_json::from_str(metadata).ok()?;
+    if copied.format != "gpui-inline-tokens-v1" || copied.text != text || copied.tokens.len() > 1000
+    {
+        return None;
+    }
+    let mut content = InputContent::new(copied.text);
+    for (start, end, id, text, label) in copied.tokens {
+        content = content
+            .with_token(start..end, InlineToken::new(id, text).with_label(label))
+            .ok()?;
+    }
+    Some(content)
+}
+
 impl<M: InputModeKind> InputBaseState<M> {
+    pub(super) fn token_clipboard(&self, text: String) -> ClipboardItem {
+        let range = self.selected_range();
+        let tokens = if self.selections.is_single() && !self.masked && !M::CODE_EDITOR {
+            self.token_spans()
+                .iter()
+                .filter(|s| range.start <= s.range.start && s.range.end <= range.end)
+                .map(|s| {
+                    (
+                        s.range.start - range.start,
+                        s.range.end - range.start,
+                        s.token.id().to_string(),
+                        s.token.text().to_string(),
+                        s.token.label().to_string(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+        if tokens.is_empty() {
+            return ClipboardItem::new_string(text);
+        }
+        ClipboardItem::new_string_with_json_metadata(
+            text.clone(),
+            CopiedTokens {
+                format: "gpui-inline-tokens-v1".into(),
+                text,
+                tokens,
+            },
+        )
+    }
+
     pub(super) fn token_spans(&self) -> &[InlineTokenSpan] {
         self.inline_tokens
             .as_ref()
@@ -288,16 +346,20 @@ impl<M: InputModeKind> InputBaseState<M> {
         if self.replaying_history {
             return None;
         }
-        let inserted = self.pending_token.take().map(|token| InlineTokenSpan {
-            range: 0..new_len,
-            token,
-        });
-        if inserted.is_some() && self.inline_tokens.is_none() {
+        let inserted = if let Some(token) = self.pending_token.take() {
+            vec![InlineTokenSpan {
+                range: 0..new_len,
+                token,
+            }]
+        } else {
+            std::mem::take(&mut self.pending_clipboard_tokens)
+        };
+        if !inserted.is_empty() && self.inline_tokens.is_none() {
             self.inline_tokens = Some(Box::default());
         }
         self.inline_tokens
             .as_mut()?
-            .replace(range, new_len, inserted.as_slice())
+            .replace(range, new_len, &inserted)
     }
     pub(super) fn replay_tokens(
         &mut self,

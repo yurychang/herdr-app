@@ -63,7 +63,8 @@ impl Store {
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;
             CREATE TABLE IF NOT EXISTS drafts(key TEXT PRIMARY KEY,body TEXT NOT NULL,revision INTEGER NOT NULL,updated INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS submissions(id TEXT PRIMARY KEY,body TEXT NOT NULL,state TEXT NOT NULL,created INTEGER NOT NULL);
-            CREATE TABLE IF NOT EXISTS history(id TEXT PRIMARY KEY,project TEXT NOT NULL,agent TEXT NOT NULL,body TEXT NOT NULL,created INTEGER NOT NULL);")?;
+            CREATE TABLE IF NOT EXISTS history(id TEXT PRIMARY KEY,project TEXT NOT NULL,agent TEXT NOT NULL,body TEXT NOT NULL,created INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS attachments(id TEXT PRIMARY KEY,body TEXT NOT NULL);")?;
         Ok(Self {
             id,
             db,
@@ -75,6 +76,63 @@ fn rows(db: &Connection, sql: &str) -> Result<Vec<Value>> {
     let mut statement = db.prepare(sql)?;
     let records = statement.query_map([], |row| row.get::<_, String>(0))?;
     records.map(|r| Ok(serde_json::from_str(&r?)?)).collect()
+}
+pub fn save_attachment(id: &str, reference: Value) -> Result<Value> {
+    with(|s| save_attachment_to(s, id, reference))
+}
+fn save_attachment_to(s: &mut Store, id: &str, mut reference: Value) -> Result<Value> {
+    if id.is_empty() || id.len() > 128 {
+        anyhow::bail!("Invalid attachment id");
+    }
+    reference["id"] = json!(id);
+    let body = serde_json::to_string(&reference)?;
+    s.db.execute(
+        "INSERT OR IGNORE INTO attachments VALUES(?1,?2)",
+        params![id, body],
+    )?;
+    let stored: String =
+        s.db.query_row("SELECT body FROM attachments WHERE id=?1", [id], |r| {
+            r.get(0)
+        })?;
+    let stored: Value = serde_json::from_str(&stored)?;
+    if stored["path"] != reference["path"] {
+        anyhow::bail!("Attachment id conflict");
+    }
+    Ok(stored)
+}
+pub fn attachment(id: &str) -> Result<Value> {
+    use rusqlite::OptionalExtension;
+    let own = with(|s| {
+        Ok(s.db
+            .query_row("SELECT body FROM attachments WHERE id=?1", [id], |r| {
+                r.get::<_, String>(0)
+            })
+            .optional()?)
+    })?;
+    if let Some(body) = own {
+        return Ok(serde_json::from_str(&body)?);
+    }
+    // An explicit pasted token may name another local client's attachment. Copy metadata into this client.
+    for entry in std::fs::read_dir(root().join("clients"))? {
+        let path = entry?.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("sqlite") {
+            continue;
+        }
+        let Ok(db) = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        else {
+            continue;
+        };
+        let Ok(Some(body)) = db
+            .query_row("SELECT body FROM attachments WHERE id=?1", [id], |r| {
+                r.get::<_, String>(0)
+            })
+            .optional()
+        else {
+            continue;
+        };
+        return save_attachment(id, serde_json::from_str(&body)?);
+    }
+    anyhow::bail!("Image attachment is unavailable; paste the image again")
 }
 pub fn attachment_folder() -> Result<PathBuf> {
     with(|s| Ok(root().join("images").join(&s.id)))
@@ -247,6 +305,28 @@ mod tests {
     use super::*;
     fn scratch() -> PathBuf {
         std::env::temp_dir().join(format!("my-herdr-store-test-{}", uuid::Uuid::new_v4()))
+    }
+    #[test]
+    fn attachment_identity_survives_reopen_and_cannot_be_rebound() {
+        let root = scratch();
+        let mut s = Store::open_at(root.clone()).unwrap();
+        let reference =
+            json!({"image":true,"path":"D:/中文 圖.png","preview":"composer/previews/a.png"});
+        let stored = save_attachment_to(&mut s, "image-id", reference.clone()).unwrap();
+        assert_eq!(stored["id"], "image-id");
+        drop(s);
+        let mut s = Store::open_at(root.clone()).unwrap();
+        assert_eq!(
+            save_attachment_to(&mut s, "image-id", reference).unwrap(),
+            stored
+        );
+        assert!(save_attachment_to(&mut s, "image-id", json!({"path":"D:/other.png"})).is_err());
+        assert_eq!(
+            rows(&s.db, "SELECT body FROM attachments").unwrap(),
+            vec![stored]
+        );
+        drop(s);
+        std::fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn drafts_survive_reopen_and_stale_async_saves_cannot_overwrite_newer_edits() {

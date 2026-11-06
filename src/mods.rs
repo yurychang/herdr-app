@@ -906,12 +906,8 @@ fn module(inst: Instance, copy: u64) -> HostModule {
         .function("composerInfo", |_| Ok(to_host(&crate::composer::info())))
         .async_function("composer", |a| Ok(crate::composer::request(a.string(0)?.to_owned(), a.get(1).map(from_host).unwrap_or(Value::Null))))
         .async_function("composerClipboardImage", |_| {
-            let bytes = gpui_shell::with_current_app(|cx| {
-                cx.read_from_clipboard()?.entries().iter().find_map(|e| match e {
-                    gpui::ClipboardEntry::Image(i) => Some(i.bytes.clone()), _ => None,
-                })
-            }).flatten().ok_or_else(|| HostError::new("No image on the clipboard"))?;
-            Ok(crate::composer::clipboard(bytes))
+            let item = gpui_shell::with_current_app(|cx| cx.read_from_clipboard()).flatten().ok_or_else(|| HostError::new("Clipboard is empty"))?;
+            Ok(crate::composer::clipboard(item))
         })
         .async_function("composerPickFiles", |_| {
             let picked = gpui_shell::with_current_app(|cx| cx.prompt_for_paths(gpui::PathPromptOptions {
