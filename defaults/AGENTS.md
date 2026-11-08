@@ -1044,5 +1044,7 @@ The helper must never send a user message to discover metadata. -->
 launcher supplies isolated paths and an absolute Core; upstream automatic
 checks and Core install/update are disabled. Update/repair the whole bundle. -->
 <!-- Integration profiles with myherdr.json show My Herdr version, manual check,
-automatic-update toggle and restart/apply in Settings > Updates. These invoke
-the integration launcher; never update the bundled App/Core independently. -->
+automatic-check toggle and separate App/mod update buttons in Settings > Updates.
+Checks never install updates. Download/apply starts only from the person's
+update action and confirmation. Mod updates reopen only the App window; Core
+and agents keep running. App/Core remain paired via the integration launcher. -->
