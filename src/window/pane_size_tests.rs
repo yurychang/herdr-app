@@ -1,3 +1,15 @@
+// Shipped layout geometry must not start real mods in GPUI's deterministic scheduler.
+fn stub_layout_mods(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            if map.contains_key("mod") { map.insert("mod".into(), serde_json::json!("size-probe")); }
+            for child in map.values_mut() { stub_layout_mods(child); }
+        }
+        serde_json::Value::Array(values) => { for child in values { stub_layout_mods(child); } }
+        _ => {}
+    }
+}
+
 #[test]
 fn initial_pane_size_matches_the_rendered_terminal() {
     in_own_process("initial_pane_size");
@@ -20,17 +32,7 @@ fn initial_pane_size(cx: &mut gpui::TestAppContext) {
     // Preserve the shipped geometry without starting real sidebar/header mods.
     // Retaining only the probe after open_window is too late: construction has
     // already spawned their OS threads, which violate GPUI's test scheduler.
-    fn stub_mods(value: &mut serde_json::Value) {
-        match value {
-            serde_json::Value::Object(map) => {
-                if map.contains_key("mod") { map.insert("mod".into(),serde_json::json!("size-probe")); }
-                for child in map.values_mut() { stub_mods(child); }
-            }
-            serde_json::Value::Array(values) => {for child in values { stub_mods(child); }}
-            _ => {}
-        }
-    }
-    stub_mods(&mut main);
+    stub_layout_mods(&mut main);
     let (view, cx) = open_window(cx, "size-probe", "export default () => null;", plain.clone());
     for (label, layout, steps) in [
         ("lone", plain.clone(), vec![]),
@@ -103,7 +105,8 @@ fn hidden_tabs_follow_the_window() {
 fn hidden_tabs_follow(cx: &mut gpui::TestAppContext) {
     use gpui::{px, size};
     if !running_alone("hidden_tabs_follow") { return; }
-    let main: serde_json::Value = serde_json::from_str(include_str!("../../defaults/layouts/main.json")).unwrap();
+    let mut main: serde_json::Value = serde_json::from_str(include_str!("../../defaults/layouts/main.json")).unwrap();
+    stub_layout_mods(&mut main);
     let (view, cx) = open_window(cx, "size-probe", "export default () => null;", main);
     // Tab "a" has two panes side by side; tab "b" is the one shown.
     let mut root = crate::model::pane("a", "probe-a");

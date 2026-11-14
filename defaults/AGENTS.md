@@ -526,7 +526,6 @@ shortcuts must then be added by hand.
 
 ## Commands
 
-- `composer.launch {agent, folder?}` starts a managed local Windows `codex` or `claude` terminal. It ends when the CLI exits, without an interactive shell fallback. The personal composer mod uses `composerInfo()`, `composer(command, args)`, `composerClipboardImage()` and `composerPickFiles()` for durable client storage, guarded submissions and local references. Manual/remote/WSL launches stay native. Native input/reconnect require confirmation again; unknown submissions are never automatically replayed. Textarea additionally exposes `set_submit_on_enter(bool)`, `is_composing()` and `selected_range()` (UTF-16).
 
 The one way to change anything; keys, mods (`run(name, args)`), menus and
 you use the same list. `herdr-app commands` prints every one with its arguments
@@ -620,7 +619,7 @@ The main ones:
   or replaced and a different core answers there, its sidebar offers Connect:
   explicitly forget the old identity and pair again with the same name and target.
   Other unreachable machines don't offer this.
-- Window: `window.minimize`, `window.maximize` (or back), `window.close`.
+- Window: `window.minimize`, `window.maximize` (or back), `window.close`, `window.always_on_top` (Windows toggle; state in `window().always_on_top`).
 - macOS: `app.quit`, `app.hide`, `app.hide_others`, `app.show_all`.
 
 When the user runs a command without a required name (a key, a click), Herdr
@@ -1032,14 +1031,7 @@ including a small herdr-core skill you can install with the user's permission.
 
 A layout tab block can add `footer: {content: {mod: "my-footer"}, height: 190}`. Each tab owns a retained mod copy with `props().tab`; no tab means no footer. Use shared keys `tab.footer.<tab>.hidden` (default false) and `tab.footer.<tab>.height` for local visibility and draggable height. Use `TextareaState.set_completion_navigation(true)` and its `navigate` event for anchored candidate menus; Enter selects without also submitting. Keep IME composition native.
 
-Composer images use native inline tokens and independent local attachment records. `composer("image.register", {id, path, managed?})` validates an image and saves its metadata/preview; `composer("image.get", {id})` resolves a pasted token and copies other local clients' metadata into this client. Keep `TextareaState.content()` with drafts to preserve token identity and UTF-16 ranges. Native token clipboard metadata preserves references through cut/paste and undo. These are local path references, not native CLI image payloads.
 
-Composers can opt in with `TextareaState.set_paste_media(true)`: image/file clipboard entries emit `paste_other` before filenames become text. `composerClipboardImage()` accepts bitmap content, one copied image file, or one absolute image-path string for an explicit paste-image action. User files remain unmanaged and are never deleted.
-<!-- Personal integration: optional metadata discovery uses MYHERDR_COMPLETIONS,
-an absolute helper executable. composer('completions',{terminal}) validates a
-managed local target and obtains official skills/command metadata only. Newly
-managed launches record myherdr.command; old launches must restart to discover.
-The helper must never send a user message to discover metadata. -->
 <!-- MYHERDR_BUNDLE=1 identifies an integration-managed App/Core pair. Its
 launcher supplies isolated paths and an absolute Core; upstream automatic
 checks and Core install/update are disabled. Update/repair the whole bundle. -->

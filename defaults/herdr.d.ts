@@ -217,10 +217,6 @@ export function setAgentOrder(addresses: string[]): null;
  *  `program` (see Program). Live. */
 export function terminals(): any[];
 /** Composer native services. PTY written never implies agent acceptance. */
-export function composerInfo(): { available: boolean; epoch: number };
-export function composer(command: string, args?: any): Promise<any>;
-export function composerClipboardImage(): Promise<any>;
-export function composerPickFiles(): Promise<string[]>;
 
 /** Actual terminal/pane focus. `space` and `tab` are the current window context.
  *  Clicking a visible layout terminal block, or pane.focus {terminal}, focuses that block:
@@ -262,6 +258,8 @@ export function window(): {
   maximized: boolean;
   fullscreen: boolean;
   active: boolean;
+  /** Windows: whether this window is currently set to stay above ordinary windows. */
+  always_on_top: boolean;
 };
 
 /** For a floating mod: where it sits now. `vertical` on the left/right edges, horizontal on
@@ -425,10 +423,3 @@ export function nextCommand(): Promise<string>;
  * Watch what you show, not a whole home folder (node_modules is a lot of events).
  */
 export function watchFolder(path: string): Promise<string[]>;
-
-/** Composer image.register accepts {id,path,managed?}; image.get accepts {id}.
- * Images are independently journaled; drafts persist native InputContent token ranges.
- * Reference metadata may contain preview, an App-home-relative bounded thumbnail asset. */
-// Personal composer operation: composer('completions', {terminal}) returns
-// {source, items:[{name,text,description,source,aliases?,path?}], warnings:[]}.
-// Requires the optional MYHERDR_COMPLETIONS helper and a managed launch command.

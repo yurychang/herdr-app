@@ -430,6 +430,7 @@ pub struct AppWindow {
     /// Where a press on a `window_drag` node started, until it moves the window.
     drag_from: Option<Point<Pixels>>,
     titlebar_applied: Option<(crate::layout::Titlebar, Option<[f32; 2]>)>,
+    always_on_top: titlebar::AlwaysOnTop,
     focused_pane: Option<String>,
     /// The mod block holding the keyboard for directional navigation.
     focused_block: Option<String>,
@@ -526,6 +527,7 @@ impl AppWindow {
             pointer: Point::default(),
             drag_from: None,
             titlebar_applied: None,
+            always_on_top: titlebar::AlwaysOnTop::default(),
             focused_pane: None,
             focused_block: None,
             synced_model_pane: None,
@@ -792,7 +794,6 @@ impl AppWindow {
 
     /// Tells the updater which core this is and who owns it (off the UI thread).
     fn note_core(core: &Arc<Core>) {
-        crate::composer::set_core(core.clone());
         let core = core.clone();
         std::thread::spawn(move || {
             if let Ok(s) = core.call("server.status", json!({})) {
@@ -2457,31 +2458,6 @@ impl AppWindow {
         Ok(json!({ "space": space, "tab": ctx, "terminal": addr }))
     }
 
-    fn managed_agent(&mut self, agent: &str, folder: Option<String>, window: &Window) -> Result<Value, String> {
-        if !cfg!(windows) || !matches!(agent, "codex" | "claude") { return Err("Managed composer v1 supports local Windows Codex and Claude".into()); }
-        if self.model.active_space().is_some_and(|s| s.machine.is_some()) { return Err("Select a local space first".into()); }
-        if !crate::composer::info()["available"].as_bool().unwrap_or(false) { return Err("Core does not support durable composer submissions".into()); }
-        let command = crate::programs::startable().into_iter().find(|p| p["key"] == agent)
-            .and_then(|p| serde_json::from_value::<Vec<String>>(p["run"].clone()).ok()).ok_or("Agent command is not configured")?;
-        let argv = vec![crate::composer::managed_shell(), "-NoLogo".into(), "-Command".into(), crate::composer::launch_line(&command)];
-        // No -NoExit: never deliver a pending submission into a replacement shell prompt.
-        let session = uuid::Uuid::new_v4().to_string();
-        let existing = self.model.active_space().map(|s| s.id.clone());
-        let space = existing.clone().unwrap_or_else(|| self.model.fresh_id_on("sp", None));
-        let tab = self.model.fresh_id_on("tb", None); let pane = self.model.fresh_id_on("p", None);
-        let cwd = folder.unwrap_or_else(|| existing.as_deref().map(|s| self.folder_for(s)).unwrap_or_else(home));
-        self.require_document(None)?;
-        let size = self.initial_size(&Tab::new(&tab, agent, &pane, "").root, &pane, window);
-        let labels = json!({"herdr.space":space,"herdr.tab":tab,"herdr.seen":"0","myherdr.agent":agent,
-            "input.session":session,"myherdr.command":serde_json::to_string(&command).map_err(|e|e.to_string())?,"myherdr.argv":serde_json::to_string(&argv).map_err(|e|e.to_string())?});
-        let address = self.core.run(argv, Some(cwd.clone()), labels, None, size, crate::terminal::initial_display(window)).map_err(|e|format!("cannot start {agent}: {e:#}"))?;
-        self.born.borrow_mut().insert(address.clone(), Instant::now()); self.cwds.insert(address.clone(), cwd.clone());
-        let model_tab = Tab::new(&tab, agent, &pane, &address);
-        if existing.is_some() { self.model.add_tab(&space, model_tab); self.model.active=Some(space.clone()); }
-        else { self.model.add_space(&space, "", &cwd, model_tab); }
-        Ok(json!({"space":space,"tab":tab,"terminal":address,"session":session}))
-    }
-
     /// A tab whose only pane is a mod (a file, a board), shown at once.
     fn new_mod_tab(&mut self, space: Option<String>, name: &str, m: String, props: Value) -> Result<Value, String> {
         let space = space.or_else(|| self.model.active_space().map(|p| p.id.clone())).ok_or("no space yet: make one first (space.new)")?;
@@ -3060,10 +3036,6 @@ impl AppWindow {
                 self.swap_pane(dir);
             }
             // ---- terminals
-            "composer.launch" => {
-                let r = self.managed_agent(Self::arg(a,"agent").unwrap_or(""), Self::owned(a,"folder"), window);
-                self.answer(r);
-            }
             "terminal.open" => {
                 let argv = Self::argv(a);
                 let r = match Self::arg(a, "place").unwrap_or("tab") {
@@ -3416,7 +3388,7 @@ impl AppWindow {
                 crate::update::relaunch();
                 cx.quit();
             }
-            "window.close" | "window.minimize" | "window.maximize" => return self.window_command(name, window, cx),
+            "window.close" | "window.minimize" | "window.maximize" | "window.always_on_top" => return self.window_command(name, window, cx),
             // Hiding apps is macOS's (bound natively there).
             "app.hide" | "app.hide_others" | "app.show_all" => return,
             other => {
@@ -5332,6 +5304,26 @@ mod tests {
         let (view, cx) = cx.add_window_view(|window, cx| super::AppWindow::new(crate::hc::offline(), requests, window, cx));
         assert_eq!(view.update(cx, |this, _| this.layout_name.clone()), "test");
         (view, cx)
+    }
+
+    #[test]
+    fn always_on_top_failure_keeps_window_state() {
+        in_own_process("always_on_top_failure");
+    }
+
+    #[gpui::test]
+    fn always_on_top_failure(cx: &mut gpui::TestAppContext) {
+        use serde_json::json;
+        if !running_alone("always_on_top_failure") { return; }
+        let (view, cx) = open_window(cx, "probe", "export default () => null;", json!({
+            "id":"root", "type":"block", "content":{"mod":"probe"}
+        }));
+        cx.update(|window, cx| view.update(cx, |this, cx| {
+            assert_eq!(this.window_json(window)["always_on_top"], false);
+            let reply = this.run_as("window.always_on_top", json!({}), false, window, cx);
+            assert!(reply["error"].is_string(), "the test window has no native Windows handle");
+            assert_eq!(this.window_json(window)["always_on_top"], false);
+        }));
     }
 
     #[test]

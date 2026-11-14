@@ -14,6 +14,35 @@
 //! with `none`, mods draw the buttons, as on Linux.
 
 use super::*;
+
+#[derive(Default)]
+pub(super) struct AlwaysOnTop(bool);
+
+impl AlwaysOnTop {
+    fn toggle(&mut self, apply: impl FnOnce(bool) -> Result<(), String>) -> Result<(), String> {
+        let next = !self.0;
+        apply(next)?;
+        self.0 = next;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod always_on_top_tests {
+    use super::AlwaysOnTop;
+
+    #[test]
+    fn toggle_only_changes_state_after_success() {
+        let mut state = AlwaysOnTop::default();
+        assert!(!state.0);
+        assert!(state.toggle(|enabled| { assert!(enabled); Err("failed".into()) }).is_err());
+        assert!(!state.0);
+        state.toggle(|enabled| { assert!(enabled); Ok(()) }).unwrap();
+        assert!(state.0);
+        state.toggle(|enabled| { assert!(!enabled); Ok(()) }).unwrap();
+        assert!(!state.0);
+    }
+}
 use crate::layout::Titlebar;
 
 /// How far the pointer moves before a press on a drag node moves the window.
@@ -84,6 +113,7 @@ impl AppWindow {
             "maximized": window.is_maximized(),
             "fullscreen": window.is_fullscreen(),
             "active": self.window_active,
+            "always_on_top": self.always_on_top.0,
         })
     }
 
@@ -205,6 +235,16 @@ impl AppWindow {
             }
             "window.minimize" => window.minimize_window(),
             #[cfg(windows)]
+            "window.always_on_top" => {
+                if let Err(error) = self.always_on_top.toggle(|enabled| win::set_always_on_top(window, enabled)) {
+                    self.fail(error);
+                } else {
+                    cx.notify();
+                }
+            }
+            #[cfg(not(windows))]
+            "window.always_on_top" => self.fail("Always on top is only supported on Windows"),
+            #[cfg(windows)]
             "window.maximize" => win::toggle_maximize(window),
             #[cfg(not(windows))]
             "window.maximize" => window.zoom_window(),
@@ -219,13 +259,23 @@ mod win {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{IsZoomed, PostMessageW, SC_MOVE, SW_MAXIMIZE, SW_RESTORE, ShowWindowAsync, WM_SYSCOMMAND};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{IsZoomed, PostMessageW, SC_MOVE, SW_MAXIMIZE, SW_RESTORE, ShowWindowAsync, WM_SYSCOMMAND, SetWindowPos, HWND_TOPMOST, HWND_NOTOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE};
 
     fn hwnd(window: &Window) -> Option<HWND> {
         match HasWindowHandle::window_handle(window).ok()?.as_raw() {
             RawWindowHandle::Win32(h) => Some(h.hwnd.get() as HWND),
             _ => None,
         }
+    }
+
+    pub(super) fn set_always_on_top(window: &Window, enabled: bool) -> Result<(), String> {
+        let h = hwnd(window).ok_or_else(|| "Windows window handle is unavailable".to_owned())?;
+        let insert_after = if enabled { HWND_TOPMOST } else { HWND_NOTOPMOST };
+        // Change only Z-order, without taking focus from the current application.
+        if unsafe { SetWindowPos(h, insert_after, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE) } == 0 {
+            return Err(format!("Could not change window always-on-top: {}", std::io::Error::last_os_error()));
+        }
+        Ok(())
     }
 
     /// Hands the press to Windows' own move loop (snapping included). Posted,

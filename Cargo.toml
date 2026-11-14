@@ -35,9 +35,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 fancy-regex = "0.19"
 notify = "7"
 sha2 = "0.10"
-uuid = { version = "1", features = ["v4"] }
-rusqlite = { version = "0.38", features = ["bundled"] }
-ignore = "0.4"
 
 [[test]]
 name = "shot_pixels"

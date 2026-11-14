@@ -1,6 +1,5 @@
 # herdr-app: drive the person's window
 
-Personal composer builds add `herdr-app do composer.launch --agent codex` (or `claude`, optional `--folder`). Only those local managed invocations support the shared composer. Native prompts remain in the terminal. Submitted text has durable IDs/receipts; written means PTY bytes, never agent acceptance. Unknown delivery must be inspected and explicitly resolved, never automatically retried.
 
 Herdr shows spaces, tabs and panes. herdr-core (`hc`) runs their terminals
 and keeps them alive when the window closes. Use `herdr-app` only to change
@@ -24,6 +23,8 @@ its terminals.
 
 `app.check_updates` checks for newer releases. Settings reports "Up to date"
 only after a successful check; on failure, check the connection and retry.
+On Windows, `window.always_on_top` toggles the window above ordinary windows;
+the state lasts only until the window closes.
 
 ## Show something when asked
 
@@ -148,12 +149,7 @@ Never stop a server or session you didn't start.
 
 Layout tab blocks may declare `footer: {content: {mod: "my-footer"}, height: 190}`. Each tab owns its footer copy (`props().tab`), absent when no tab is shown. Visibility/height use local shared keys `tab.footer.<tab>.hidden` and `tab.footer.<tab>.height`; drag its upper edge to resize.
 
-The composer stores image attachments independently and inserts atomic `[Image #N]` references at the caret. Thumbnail previews are bounded and generated off the UI thread. Native copy/cut/paste preserves inline token identity and undo. Draft/history recovery retains content snapshots. Delivery remains explicit local image paths at each token position; this does not inject a native CLI binary image attachment.
 
-The composer's Ctrl+V recognizes a copied single image file or bitmap content; Ctrl+Shift+V explicitly accepts a copied absolute image-path string too. Other native text fields retain normal paste behavior. This uses the opt-in native `set_paste_media(true)` bridge, not text-change path guessing.
-<!-- Composer metadata: composer('completions',{terminal}) reads official skills
-through the optional MYHERDR_COMPLETIONS integration helper. No model turn is
-started. Managed launch arguments are preserved in the myherdr.command label. -->
 <!-- My Herdr packaged builds set MYHERDR_BUNDLE=1 and HERDR_APP_ID=my-herdr.
 Use the My Herdr installer to update or repair the matched App/Core runtime. -->
 <!-- My Herdr profiles expose paired manual check/restart and automatic-update
